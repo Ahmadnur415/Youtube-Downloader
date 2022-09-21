@@ -19,16 +19,15 @@ class AsyncDownload(Thread):
             else:
                 name += f" ({self.stream.resolution}).mp4"
             filename = re.sub(r'[:|$|*|"|\\|<|>|?|/]', r'', name)
-            self.stream.download(dirpath, filename)
+            self.stream.download(dirpath.get(), filename)
         except:
             messagebox.showerror("ERROR", "Connection Problem !")
         else:
-            os.startfile(dirpath)
-            filepath = dirpath + "\\" + filename
+            os.startfile(dirpath.get())
+            filepath = dirpath.get() + "\\" + filename
             messagebox.showinfo('Successfully Downloaded.', f"Your YouTube Vidoe Downloaded Successfully at {filepath!r}")
 
 
-# contoh https://youtu.be/8RmZFUxos3E
 window = tk.Tk()
 window.geometry("500x390")
 window.title("YT Downloader")
@@ -38,6 +37,7 @@ video_object = None
 streams_object = None
 RealPath = os.path.dirname(os.path.realpath(__file__))
 dirpath = tk.StringVar(value=RealPath)
+threads = []
 info_video = {
     "title": tk.StringVar(),
     "view": tk.StringVar(),
@@ -51,6 +51,7 @@ def open_folder():
     dirpath.set(filedialog.askdirectory(initialdir=dirpath.get()))
     if not os.path.isdir(dirpath.get()):
         dirpath.set(RealPath)
+
 
 def clear_widget():
     global video_object, streams_object
@@ -67,6 +68,8 @@ def clear_widget():
     info_video["description"]["state"] = tk.NORMAL
     info_video["description"].delete("1.0", "end")
     info_video["description"]["state"] = tk.DISABLED
+    threads.clear()
+
 
 def update():
     try:
@@ -89,11 +92,15 @@ def update():
         """ set vidoes and audio """
         no = 1
         for stream in streams_object.filter(progressive=True):
-            frame_stream(stream=stream, no=no)
+            _new_thread = Thread(target=frame_stream, kwargs={'stream': stream, 'no': no})
+            threads.append(_new_thread)
+            _new_thread.start()
             no += 1
         # audio
         for stream in streams_object.filter(only_audio=True, file_extension="mp4"):
-            frame_stream(stream=stream, no=no)
+            _new_thread = Thread(target=frame_stream, kwargs={'stream': stream, 'no': no})
+            threads.append(_new_thread)
+            _new_thread.start()
             no += 1
 
     finally:
@@ -106,7 +113,7 @@ def frame_stream(stream, no):
 
     mime_type = stream.mime_type.capitalize()
     if stream.type == "audio":
-        mime_type.replace("/mp4", "/mp3")
+        mime_type = mime_type.replace("mp4", "mp3")
 
     quality = stream.resolution if stream.type == "video" else stream.abr
     size = round(stream.filesize / 1048576, 1)
@@ -124,13 +131,16 @@ def frame_stream(stream, no):
     btn.grid(row=1, column=0, sticky=tk.W, padx=10)
     frame.grid(row=no, column=0, sticky=tk.NSEW)
 
+
 def handle_download(stream):
-    download = AsyncDownload(stream, dirpath.get())
+    download = AsyncDownload(stream)
     download.start()
+
 
 def handle_update():
     thread = Thread(target=update)
     thread.start()
+
 
 # mambuat kepala
 header = ttk.Frame(window)
